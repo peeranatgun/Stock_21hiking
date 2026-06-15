@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>เข้าสู่ระบบ — 21Hiking Stock</title>
+  <script src="/env.js"></script>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#1d1d1f"/>
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png"/>
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <div style="font-size:36px;margin-bottom:8px;">🏔️</div>
+      <h1>21Hiking Stock</h1>
+      <p>ระบบจัดการสต็อกสินค้า</p>
+    </div>
+
+    <div id="login-error" class="hidden" style="
+      background:rgba(255,59,48,0.1);
+      color:#c0392b;
+      padding:10px 14px;
+      border-radius:8px;
+      font-size:13px;
+      margin-bottom:16px;
+    "></div>
+
+    <div class="form-group">
+      <label class="form-label">อีเมล</label>
+      <input id="email" type="email" class="form-input" placeholder="you@example.com" autocomplete="email"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">รหัสผ่าน</label>
+      <input id="password" type="password" class="form-input" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+
+    <button id="login-btn" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:4px;">
+      เข้าสู่ระบบ
+    </button>
+  </div>
+</div>
+
+<script type="module">
+import { supabase } from './supabase.js';
+import { getSession, login } from './auth.js';
+
+// If already logged in, redirect
+const session = await getSession();
+if (session) { window.location.href = '/index.html'; }
+
+const btn = document.getElementById('login-btn');
+const errEl = document.getElementById('login-error');
+
+function showError(msg) {
+  errEl.textContent = msg;
+  errEl.classList.remove('hidden');
+}
+
+btn.addEventListener('click', async () => {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if (!email || !password) { showError('กรุณากรอกอีเมลและรหัสผ่าน'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'กำลังเข้าสู่ระบบ…';
+  errEl.classList.add('hidden');
+
+  try {
+    await login(email, password);
+    window.location.href = '/index.html';
+  } catch (err) {
+    showError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+    btn.disabled = false;
+    btn.textContent = 'เข้าสู่ระบบ';
+  }
+});
+
+// Enter key
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') btn.click();
+});
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
+</body>
+</html>

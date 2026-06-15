@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>แบรนด์ — 21Hiking Stock</title>
+  <script src="/env.js"></script>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#1d1d1f"/>
+</head>
+<body>
+<div id="sidebar-overlay" class="sidebar-overlay"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo"><h1>🏔️ 21Hiking Stock</h1><span>Stock Management</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">หลัก</div>
+      <a class="nav-item" data-page="index.html" href="index.html"><span class="nav-icon">📊</span>Dashboard</a>
+      <a class="nav-item" data-page="products.html" href="products.html"><span class="nav-icon">👕</span>สินค้า</a>
+      <a class="nav-item" data-page="brands.html" href="brands.html"><span class="nav-icon">🏷️</span>แบรนด์</a>
+      <div class="nav-section-label">รายการ</div>
+      <a class="nav-item" data-page="sales.html" href="sales.html"><span class="nav-icon">💰</span>ยอดขาย</a>
+      <a class="nav-item" data-page="expenses.html" href="expenses.html"><span class="nav-icon">🧾</span>รายจ่าย</a>
+      <div class="nav-section-label">วิเคราะห์</div>
+      <a class="nav-item" data-page="reports.html" href="reports.html"><span class="nav-icon">📈</span>รายงาน</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;" id="user-email"></div>
+      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" data-logout>ออกจากระบบ</button>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" id="hamburger">☰</button>
+        <span class="topbar-title">แบรนด์</span>
+      </div>
+      <button class="btn btn-primary btn-sm" id="add-brand-btn">+ เพิ่มแบรนด์</button>
+    </header>
+    <main class="page-content">
+      <div id="brand-grid" class="brand-grid"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Brand Modal -->
+<div class="modal-overlay" id="brand-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 class="modal-title" id="brand-modal-title">เพิ่มแบรนด์</h2>
+      <button class="modal-close" data-close>✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ชื่อแบรนด์ <span style="color:var(--accent-red)">*</span></label>
+      <input type="text" id="brand-name" class="form-input" placeholder="เช่น The North Face"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button class="btn btn-primary" id="save-brand-btn">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-handle"></div>
+    <div class="confirm-dialog">
+      <div class="confirm-icon">⚠️</div>
+      <div class="confirm-title">ยืนยัน</div>
+      <div class="confirm-desc"></div>
+    </div>
+    <div class="modal-footer" style="margin-top:20px;">
+      <button class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button class="btn btn-red" id="confirm-ok">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+
+<script type="module">
+import { initApp, showToast, openModal, closeModal, setupModalClose, confirm } from './app.js';
+import { getBrands, createBrand, updateBrand, deleteBrand } from './brands.js';
+
+setupModalClose('brand-modal');
+setupModalClose('confirm-modal');
+const session = await initApp();
+if (!session) throw new Error('not auth');
+
+let editingId = null;
+
+async function load() {
+  const grid = document.getElementById('brand-grid');
+  grid.innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+  try {
+    const brands = await getBrands();
+    if (!brands.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-state-icon">🏷️</div><h3>ยังไม่มีแบรนด์</h3><p>กด "เพิ่มแบรนด์" เพื่อเริ่มต้น</p></div>`;
+      return;
+    }
+    grid.innerHTML = brands.map(b => {
+      const count = b.products?.[0]?.count ?? 0;
+      return `<div class="brand-card">
+        <div>
+          <div class="brand-name">${b.name}</div>
+          <div class="brand-count">${count} สินค้า</div>
+        </div>
+        <div class="brand-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editBrand('${b.id}','${b.name.replace(/'/g,"\\'")}')">แก้ไข</button>
+          <button class="btn btn-red btn-sm" onclick="removeBrand('${b.id}','${b.name.replace(/'/g,"\\'")}')">ลบ</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    grid.innerHTML = `<p style="color:var(--accent-red)">${e.message}</p>`;
+  }
+}
+
+document.getElementById('add-brand-btn').addEventListener('click', () => {
+  editingId = null;
+  document.getElementById('brand-modal-title').textContent = 'เพิ่มแบรนด์';
+  document.getElementById('brand-name').value = '';
+  openModal('brand-modal');
+});
+
+window.editBrand = (id, name) => {
+  editingId = id;
+  document.getElementById('brand-modal-title').textContent = 'แก้ไขแบรนด์';
+  document.getElementById('brand-name').value = name;
+  openModal('brand-modal');
+};
+
+document.getElementById('save-brand-btn').addEventListener('click', async () => {
+  const name = document.getElementById('brand-name').value.trim();
+  if (!name) { showToast('กรุณากรอกชื่อแบรนด์', 'warning'); return; }
+  const btn = document.getElementById('save-brand-btn');
+  btn.disabled = true;
+  try {
+    if (editingId) { await updateBrand(editingId, name); showToast('แก้ไขแบรนด์สำเร็จ'); }
+    else { await createBrand(name); showToast('เพิ่มแบรนด์สำเร็จ'); }
+    closeModal('brand-modal');
+    load();
+  } catch (e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+});
+
+window.removeBrand = (id, name) => {
+  confirm({
+    icon: '🗑️', title: 'ลบแบรนด์', desc: `ลบ "${name}" ใช่ไหม?`,
+    onConfirm: async () => {
+      try { await deleteBrand(id); showToast('ลบแบรนด์แล้ว'); load(); }
+      catch (e) { showToast(e.message, 'error'); }
+    }
+  });
+};
+
+load();
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
+</body>
+</html>

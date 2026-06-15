@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>สินค้า — 21Hiking Stock</title>
+  <script src="/env.js"></script>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#1d1d1f"/>
+</head>
+<body>
+<div id="sidebar-overlay" class="sidebar-overlay"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo"><h1>🏔️ 21Hiking Stock</h1><span>Stock Management</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">หลัก</div>
+      <a class="nav-item" data-page="index.html" href="index.html"><span class="nav-icon">📊</span>Dashboard</a>
+      <a class="nav-item" data-page="products.html" href="products.html"><span class="nav-icon">👕</span>สินค้า</a>
+      <a class="nav-item" data-page="brands.html" href="brands.html"><span class="nav-icon">🏷️</span>แบรนด์</a>
+      <div class="nav-section-label">รายการ</div>
+      <a class="nav-item" data-page="sales.html" href="sales.html"><span class="nav-icon">💰</span>ยอดขาย</a>
+      <a class="nav-item" data-page="expenses.html" href="expenses.html"><span class="nav-icon">🧾</span>รายจ่าย</a>
+      <div class="nav-section-label">วิเคราะห์</div>
+      <a class="nav-item" data-page="reports.html" href="reports.html"><span class="nav-icon">📈</span>รายงาน</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;" id="user-email"></div>
+      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" data-logout>ออกจากระบบ</button>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" id="hamburger">☰</button>
+        <span class="topbar-title">สินค้า</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm" id="add-product-btn">+ เพิ่มสินค้า</button>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <div class="toolbar">
+        <div class="search-box">
+          <input type="search" id="search-input" placeholder="ค้นหาสินค้า หรือแบรนด์…"/>
+        </div>
+        <select class="filter-select" id="filter-brand"><option value="">ทุกแบรนด์</option></select>
+        <select class="filter-select" id="filter-status">
+          <option value="">ทุกสถานะ</option>
+          <option value="instock">ในสต็อก</option>
+          <option value="sold">ขายแล้ว</option>
+        </select>
+      </div>
+
+      <div id="product-grid" class="product-grid"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Add/Edit Product Modal -->
+<div class="modal-overlay" id="product-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 class="modal-title" id="product-modal-title">เพิ่มสินค้า</h2>
+      <button class="modal-close" data-close>✕</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">รูปสินค้า</label>
+      <div class="image-upload" id="image-upload-area">
+        <input type="file" id="image-input" accept="image/jpeg,image/png,image/webp"/>
+        <img id="image-preview" class="image-upload-preview hidden"/>
+        <div id="upload-placeholder">
+          <div class="upload-icon">📷</div>
+          <div class="upload-text">แตะเพื่ออัปโหลดรูป</div>
+          <div class="upload-hint">JPG, PNG, WEBP</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">ชื่อสินค้า <span style="color:var(--accent-red)">*</span></label>
+      <input type="text" id="prd-name" class="form-input" placeholder="เช่น Fleece Jacket"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">แบรนด์</label>
+        <select id="prd-brand" class="form-input"><option value="">— เลือกแบรนด์ —</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">สถานะ</label>
+        <select id="prd-status" class="form-input">
+          <option value="instock">ในสต็อก</option>
+          <option value="sold">ขายแล้ว</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">ไซส์</label>
+        <input type="text" id="prd-size" class="form-input" placeholder="M, L, XL…"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">สี</label>
+        <input type="text" id="prd-color" class="form-input" placeholder="Navy, Black…"/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">ต้นทุน (฿)</label>
+        <input type="number" id="prd-cost" class="form-input" placeholder="0" min="0"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ราคาขาย (฿)</label>
+        <input type="number" id="prd-sell" class="form-input" placeholder="0" min="0"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">รายละเอียด</label>
+      <textarea id="prd-desc" class="form-textarea" placeholder="รายละเอียดเพิ่มเติม…"></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button class="btn btn-primary" id="save-product-btn">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Product Modal -->
+<div class="modal-overlay" id="view-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 class="modal-title">รายละเอียดสินค้า</h2>
+      <button class="modal-close" data-close>✕</button>
+    </div>
+    <div id="view-content"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close>ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-handle"></div>
+    <div class="confirm-dialog">
+      <div class="confirm-icon">⚠️</div>
+      <div class="confirm-title">ยืนยัน</div>
+      <div class="confirm-desc"></div>
+    </div>
+    <div class="modal-footer" style="margin-top:20px;">
+      <button class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button class="btn btn-red" id="confirm-ok">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script type="module">
+import { initApp, showToast, openModal, closeModal, setupModalClose, formatCurrency, formatDate, confirm, debounce } from './app.js';
+import { getProducts, getProductById, createProduct, updateProduct, deleteProduct, markAsSold } from './products.js';
+import { getBrandsSimple } from './brands.js';
+import { uploadProductImage } from './storage.js';
+
+setupModalClose('product-modal');
+setupModalClose('view-modal');
+setupModalClose('confirm-modal');
+const session = await initApp();
+if (!session) throw new Error('not auth');
+
+let brands = [];
+let editingId = null;
+let currentImageUrl = null;
+let pendingImageFile = null;
+
+// ── Load brands for selects ─────────────────────
+async function loadBrands() {
+  brands = await getBrandsSimple();
+  const filterSel = document.getElementById('filter-brand');
+  const prdSel = document.getElementById('prd-brand');
+  brands.forEach(b => {
+    filterSel.appendChild(new Option(b.name, b.id));
+    prdSel.appendChild(new Option(b.name, b.id));
+  });
+}
+
+// ── Load products ───────────────────────────────
+async function loadProducts() {
+  const search = document.getElementById('search-input').value;
+  const brandId = document.getElementById('filter-brand').value;
+  const status = document.getElementById('filter-status').value;
+  const grid = document.getElementById('product-grid');
+  grid.innerHTML = '<div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div></div>';
+
+  try {
+    const products = await getProducts({ search, brandId, status });
+    renderGrid(products);
+  } catch (e) {
+    grid.innerHTML = `<p style="color:var(--accent-red);padding:20px">${e.message}</p>`;
+  }
+}
+
+function renderGrid(products) {
+  const grid = document.getElementById('product-grid');
+  if (!products.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-state-icon">👕</div>
+      <h3>ยังไม่มีสินค้า</h3>
+      <p>กดปุ่ม "เพิ่มสินค้า" เพื่อเริ่มต้น</p>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = products.map(p => `
+    <div class="product-card" data-id="${p.id}">
+      ${p.image_url
+        ? `<img class="product-img" src="${p.image_url}" alt="${p.name}" loading="lazy"/>`
+        : `<div class="product-img-placeholder">👕</div>`}
+      <div class="product-info">
+        <div class="product-brand">${p.brands?.name || '—'}</div>
+        <div class="product-name" title="${p.name}">${p.name}</div>
+        <div class="product-meta">
+          <div class="product-price-col">
+            <div class="product-cost">ต้นทุน ${formatCurrency(p.cost)}</div>
+            <div class="product-sell">${formatCurrency(p.sell_price)}</div>
+          </div>
+          <span class="badge badge-${p.status}">${p.status === 'instock' ? 'ในสต็อก' : 'ขายแล้ว'}</span>
+        </div>
+      </div>
+      <div class="product-actions">
+        <button class="btn btn-ghost btn-sm" onclick="viewProduct('${p.id}')">ดู</button>
+        <button class="btn btn-ghost btn-sm" onclick="editProduct('${p.id}')">แก้ไข</button>
+        ${p.status === 'instock' ? `<button class="btn btn-green btn-sm" onclick="soldProduct('${p.id}','${p.name}')">ขาย</button>` : ''}
+        <button class="btn btn-red btn-sm" onclick="removeProduct('${p.id}','${p.name}')">ลบ</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Image upload ────────────────────────────────
+const imageArea = document.getElementById('image-upload-area');
+const imageInput = document.getElementById('image-input');
+const imagePreview = document.getElementById('image-preview');
+const uploadPlaceholder = document.getElementById('upload-placeholder');
+
+imageArea.addEventListener('click', () => imageInput.click());
+imageInput.addEventListener('change', () => {
+  const file = imageInput.files[0];
+  if (!file) return;
+  pendingImageFile = file;
+  const url = URL.createObjectURL(file);
+  imagePreview.src = url;
+  imagePreview.classList.remove('hidden');
+  uploadPlaceholder.classList.add('hidden');
+});
+
+// ── Open add modal ──────────────────────────────
+document.getElementById('add-product-btn').addEventListener('click', () => {
+  editingId = null;
+  currentImageUrl = null;
+  pendingImageFile = null;
+  document.getElementById('product-modal-title').textContent = 'เพิ่มสินค้า';
+  ['prd-name','prd-size','prd-color','prd-cost','prd-sell','prd-desc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('prd-brand').value = '';
+  document.getElementById('prd-status').value = 'instock';
+  imagePreview.classList.add('hidden');
+  uploadPlaceholder.classList.remove('hidden');
+  imagePreview.src = '';
+  imageInput.value = '';
+  openModal('product-modal');
+});
+
+// ── Edit ────────────────────────────────────────
+window.editProduct = async (id) => {
+  editingId = id;
+  pendingImageFile = null;
+  try {
+    const p = await getProductById(id);
+    document.getElementById('product-modal-title').textContent = 'แก้ไขสินค้า';
+    document.getElementById('prd-name').value = p.name || '';
+    document.getElementById('prd-brand').value = p.brand_id || '';
+    document.getElementById('prd-status').value = p.status || 'instock';
+    document.getElementById('prd-size').value = p.size || '';
+    document.getElementById('prd-color').value = p.color || '';
+    document.getElementById('prd-cost').value = p.cost || '';
+    document.getElementById('prd-sell').value = p.sell_price || '';
+    document.getElementById('prd-desc').value = p.description || '';
+    currentImageUrl = p.image_url || null;
+
+    if (p.image_url) {
+      imagePreview.src = p.image_url;
+      imagePreview.classList.remove('hidden');
+      uploadPlaceholder.classList.add('hidden');
+    } else {
+      imagePreview.classList.add('hidden');
+      uploadPlaceholder.classList.remove('hidden');
+    }
+    openModal('product-modal');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+};
+
+// ── View ────────────────────────────────────────
+window.viewProduct = async (id) => {
+  try {
+    const p = await getProductById(id);
+    const profit = (p.sell_price || 0) - (p.cost || 0);
+    document.getElementById('view-content').innerHTML = `
+      <div class="product-detail">
+        ${p.image_url
+          ? `<img class="product-detail-img" src="${p.image_url}" alt="${p.name}"/>`
+          : `<div class="product-detail-img" style="display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--surface-2);">👕</div>`}
+        <div>
+          <div class="product-brand" style="margin-bottom:4px;">${p.brands?.name || '—'}</div>
+          <div style="font-size:20px;font-weight:700;margin-bottom:12px;">${p.name}</div>
+          <div class="detail-row"><span class="detail-key">สถานะ</span><span class="badge badge-${p.status}">${p.status === 'instock' ? 'ในสต็อก' : 'ขายแล้ว'}</span></div>
+          <div class="detail-row"><span class="detail-key">ไซส์</span><span class="detail-val">${p.size || '—'}</span></div>
+          <div class="detail-row"><span class="detail-key">สี</span><span class="detail-val">${p.color || '—'}</span></div>
+          <div class="detail-row"><span class="detail-key">ต้นทุน</span><span class="detail-val">${formatCurrency(p.cost)}</span></div>
+          <div class="detail-row"><span class="detail-key">ราคาขาย</span><span class="detail-val">${formatCurrency(p.sell_price)}</span></div>
+          <div class="detail-row"><span class="detail-key">กำไร</span><span class="detail-val ${profit >= 0 ? 'text-green' : 'text-red'}">${formatCurrency(profit)}</span></div>
+          <div class="detail-row"><span class="detail-key">วันที่เพิ่ม</span><span class="detail-val">${formatDate(p.created_at)}</span></div>
+          ${p.description ? `<div style="margin-top:12px;font-size:13px;color:var(--text-secondary);line-height:1.6;">${p.description}</div>` : ''}
+        </div>
+      </div>
+    `;
+    openModal('view-modal');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+};
+
+// ── Save ────────────────────────────────────────
+document.getElementById('save-product-btn').addEventListener('click', async () => {
+  const name = document.getElementById('prd-name').value.trim();
+  if (!name) { showToast('กรุณากรอกชื่อสินค้า', 'warning'); return; }
+
+  const btn = document.getElementById('save-product-btn');
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก…';
+
+  try {
+    let imageUrl = currentImageUrl;
+    if (pendingImageFile) {
+      imageUrl = await uploadProductImage(pendingImageFile);
+    }
+
+    const payload = {
+      name,
+      brand_id: document.getElementById('prd-brand').value || null,
+      status: document.getElementById('prd-status').value,
+      size: document.getElementById('prd-size').value.trim() || null,
+      color: document.getElementById('prd-color').value.trim() || null,
+      cost: parseFloat(document.getElementById('prd-cost').value) || null,
+      sell_price: parseFloat(document.getElementById('prd-sell').value) || null,
+      description: document.getElementById('prd-desc').value.trim() || null,
+      image_url: imageUrl,
+    };
+
+    if (editingId) {
+      await updateProduct(editingId, payload);
+      showToast('แก้ไขสินค้าสำเร็จ');
+    } else {
+      await createProduct(payload);
+      showToast('เพิ่มสินค้าสำเร็จ');
+    }
+
+    closeModal('product-modal');
+    loadProducts();
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'บันทึก';
+  }
+});
+
+// ── Mark as sold ────────────────────────────────
+window.soldProduct = async (id, name) => {
+  const p = await getProductById(id);
+  confirm({
+    icon: '💰',
+    title: 'ยืนยันการขาย',
+    desc: `ยืนยันว่าขาย "${name}" แล้ว?\nกำไร: ${formatCurrency((p.sell_price||0)-(p.cost||0))}`,
+    confirmText: 'ขายแล้ว',
+    confirmClass: 'btn-green',
+    onConfirm: async () => {
+      try {
+        await markAsSold(p);
+        showToast('บันทึกการขายสำเร็จ 🎉', 'success');
+        loadProducts();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+  });
+};
+
+// ── Delete ──────────────────────────────────────
+window.removeProduct = (id, name) => {
+  confirm({
+    icon: '🗑️',
+    title: 'ลบสินค้า',
+    desc: `ต้องการลบ "${name}" ใช่ไหม? ไม่สามารถย้อนกลับได้`,
+    onConfirm: async () => {
+      try {
+        await deleteProduct(id);
+        showToast('ลบสินค้าแล้ว');
+        loadProducts();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+  });
+};
+
+// ── Filters / Search ────────────────────────────
+const debouncedLoad = debounce(loadProducts, 300);
+document.getElementById('search-input').addEventListener('input', debouncedLoad);
+document.getElementById('filter-brand').addEventListener('change', loadProducts);
+document.getElementById('filter-status').addEventListener('change', loadProducts);
+
+await loadBrands();
+loadProducts();
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
+</body>
+</html>

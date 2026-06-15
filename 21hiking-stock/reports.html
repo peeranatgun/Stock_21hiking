@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>รายงาน — 21Hiking Stock</title>
+  <script src="/env.js"></script>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#1d1d1f"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="sidebar-overlay" class="sidebar-overlay"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo"><h1>🏔️ 21Hiking Stock</h1><span>Stock Management</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">หลัก</div>
+      <a class="nav-item" data-page="index.html" href="index.html"><span class="nav-icon">📊</span>Dashboard</a>
+      <a class="nav-item" data-page="products.html" href="products.html"><span class="nav-icon">👕</span>สินค้า</a>
+      <a class="nav-item" data-page="brands.html" href="brands.html"><span class="nav-icon">🏷️</span>แบรนด์</a>
+      <div class="nav-section-label">รายการ</div>
+      <a class="nav-item" data-page="sales.html" href="sales.html"><span class="nav-icon">💰</span>ยอดขาย</a>
+      <a class="nav-item" data-page="expenses.html" href="expenses.html"><span class="nav-icon">🧾</span>รายจ่าย</a>
+      <div class="nav-section-label">วิเคราะห์</div>
+      <a class="nav-item" data-page="reports.html" href="reports.html"><span class="nav-icon">📈</span>รายงาน</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;" id="user-email"></div>
+      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" data-logout>ออกจากระบบ</button>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" id="hamburger">☰</button>
+        <span class="topbar-title">รายงาน</span>
+      </div>
+      <button class="btn btn-green btn-sm" id="export-btn">📥 Export Excel</button>
+    </header>
+    <main class="page-content">
+      <div id="summary-grid" class="stat-grid" style="margin-bottom:24px;"></div>
+      <div class="chart-grid" id="charts-area"></div>
+    </main>
+  </div>
+</div>
+<div id="toast-container"></div>
+
+<script type="module">
+import { initApp, showToast, formatCurrency } from './app.js';
+import { getDashboardStats } from './products.js';
+import { getMonthlyStats, getMonthlyExpenses } from './sales.js';
+import { getAllDataForExport, exportToExcel } from './reports.js';
+
+const session = await initApp();
+if (!session) throw new Error('not auth');
+
+async function load() {
+  try {
+    const [stats, monthly, monthlyExp] = await Promise.all([
+      getDashboardStats(),
+      getMonthlyStats(),
+      getMonthlyExpenses(),
+    ]);
+    renderSummary(stats);
+    renderCharts(monthly, monthlyExp);
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function renderSummary(s) {
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="stat-card green"><div class="stat-label">รายรับรวม</div><div class="stat-value">${formatCurrency(s.totalRevenue)}</div></div>
+    <div class="stat-card red"><div class="stat-label">รายจ่ายรวม</div><div class="stat-value">${formatCurrency(s.totalExpense)}</div></div>
+    <div class="stat-card orange"><div class="stat-label">กำไรรวม</div><div class="stat-value">${formatCurrency(s.totalProfit)}</div></div>
+    <div class="stat-card ${s.netProfit >= 0 ? 'green' : 'red'}"><div class="stat-label">กำไรสุทธิ</div><div class="stat-value">${formatCurrency(s.netProfit)}</div><div class="stat-sub">หลังหักรายจ่าย</div></div>
+  `;
+}
+
+function renderCharts(monthly, monthlyExp) {
+  const area = document.getElementById('charts-area');
+  const keys = [...new Set([...Object.keys(monthly), ...Object.keys(monthlyExp)])].sort();
+  if (!keys.length) {
+    area.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">📈</div><h3>ยังไม่มีข้อมูลกราฟ</h3></div>';
+    return;
+  }
+  const labels = keys.map(k => {
+    const [y, m] = k.split('-');
+    return new Date(+y, +m - 1).toLocaleDateString('th-TH', { month: 'short', year: '2-digit' });
+  });
+
+  area.innerHTML = `
+    <div class="chart-card"><div class="chart-title">รายรับรายเดือน</div><canvas id="chart-rev"></canvas></div>
+    <div class="chart-card"><div class="chart-title">กำไรรายเดือน</div><canvas id="chart-profit"></canvas></div>
+    <div class="chart-card"><div class="chart-title">รายจ่ายรายเดือน</div><canvas id="chart-exp"></canvas></div>
+  `;
+
+  const chartOpts = { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } };
+
+  new Chart(document.getElementById('chart-rev'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'รายรับ', data: keys.map(k => monthly[k]?.revenue || 0), backgroundColor: 'rgba(0,113,227,0.7)', borderRadius: 6 }] },
+    options: chartOpts
+  });
+  new Chart(document.getElementById('chart-profit'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'กำไร', data: keys.map(k => monthly[k]?.profit || 0), backgroundColor: 'rgba(52,199,89,0.7)', borderRadius: 6 }] },
+    options: chartOpts
+  });
+  new Chart(document.getElementById('chart-exp'), {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'รายจ่าย', data: keys.map(k => monthlyExp[k] || 0), borderColor: '#ff3b30', backgroundColor: 'rgba(255,59,48,0.08)', fill: true, tension: 0.4, pointRadius: 4 }] },
+    options: { ...chartOpts, plugins: { legend: { display: false } } }
+  });
+}
+
+document.getElementById('export-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('export-btn');
+  btn.disabled = true;
+  btn.textContent = 'กำลัง Export…';
+  try {
+    const data = await getAllDataForExport();
+    exportToExcel(data);
+    showToast('Export Excel สำเร็จ 📥', 'success');
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📥 Export Excel';
+  }
+});
+
+load();
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
+</body>
+</html>

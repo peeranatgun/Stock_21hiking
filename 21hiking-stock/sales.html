@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ยอดขาย — 21Hiking Stock</title>
+  <script src="/env.js"></script>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#1d1d1f"/>
+</head>
+<body>
+<div id="sidebar-overlay" class="sidebar-overlay"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo"><h1>🏔️ 21Hiking Stock</h1><span>Stock Management</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">หลัก</div>
+      <a class="nav-item" data-page="index.html" href="index.html"><span class="nav-icon">📊</span>Dashboard</a>
+      <a class="nav-item" data-page="products.html" href="products.html"><span class="nav-icon">👕</span>สินค้า</a>
+      <a class="nav-item" data-page="brands.html" href="brands.html"><span class="nav-icon">🏷️</span>แบรนด์</a>
+      <div class="nav-section-label">รายการ</div>
+      <a class="nav-item" data-page="sales.html" href="sales.html"><span class="nav-icon">💰</span>ยอดขาย</a>
+      <a class="nav-item" data-page="expenses.html" href="expenses.html"><span class="nav-icon">🧾</span>รายจ่าย</a>
+      <div class="nav-section-label">วิเคราะห์</div>
+      <a class="nav-item" data-page="reports.html" href="reports.html"><span class="nav-icon">📈</span>รายงาน</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;" id="user-email"></div>
+      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" data-logout>ออกจากระบบ</button>
+    </div>
+  </aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" id="hamburger">☰</button>
+        <span class="topbar-title">ยอดขาย</span>
+      </div>
+    </header>
+    <main class="page-content">
+      <div class="toolbar">
+        <div class="search-box">
+          <input type="search" id="search-input" placeholder="ค้นหาสินค้า หรือแบรนด์…"/>
+        </div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>วันที่</th>
+                <th>สินค้า</th>
+                <th>แบรนด์</th>
+                <th class="text-right">ต้นทุน</th>
+                <th class="text-right">ราคาขาย</th>
+                <th class="text-right">กำไร</th>
+              </tr>
+            </thead>
+            <tbody id="sales-tbody">
+              <tr><td colspan="6"><div class="loading-overlay"><div class="spinner"></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div id="pagination" class="pagination"></div>
+    </main>
+  </div>
+</div>
+<div id="toast-container"></div>
+
+<script type="module">
+import { initApp, formatCurrency, formatDate, renderPagination, debounce } from './app.js';
+import { getSales } from './sales.js';
+
+const session = await initApp();
+if (!session) throw new Error('not auth');
+
+let page = 1;
+const PER_PAGE = 25;
+
+async function load() {
+  const search = document.getElementById('search-input').value;
+  const tbody = document.getElementById('sales-tbody');
+  tbody.innerHTML = '<tr><td colspan="6"><div class="loading-overlay"><div class="spinner"></div></div></td></tr>';
+  try {
+    const { data, count } = await getSales({ search, page, perPage: PER_PAGE });
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">💰</div><h3>ยังไม่มีรายการขาย</h3></div></td></tr>';
+      document.getElementById('pagination').innerHTML = '';
+      return;
+    }
+    tbody.innerHTML = data.map(s => `
+      <tr>
+        <td style="white-space:nowrap;font-size:13px;">${formatDate(s.sold_at)}</td>
+        <td style="font-weight:600;">${s.products?.name || '—'}</td>
+        <td style="color:var(--text-secondary);font-size:13px;">${s.products?.brands?.name || '—'}</td>
+        <td class="text-right" style="font-size:13px;">${formatCurrency(s.cost)}</td>
+        <td class="text-right fw-700">${formatCurrency(s.sell_price)}</td>
+        <td class="text-right ${(s.profit||0) >= 0 ? 'profit-positive' : 'profit-negative'}">${formatCurrency(s.profit)}</td>
+      </tr>
+    `).join('');
+
+    renderPagination(document.getElementById('pagination'), page, count || data.length, PER_PAGE, (p) => { page = p; load(); });
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--accent-red);padding:20px">${e.message}</td></tr>`;
+  }
+}
+
+const debouncedLoad = debounce(() => { page = 1; load(); }, 300);
+document.getElementById('search-input').addEventListener('input', debouncedLoad);
+
+load();
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
+</body>
+</html>
