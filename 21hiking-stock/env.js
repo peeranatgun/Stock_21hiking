@@ -4,5 +4,5 @@
 // For a purely static Vercel deploy (no build), manually paste your values here.
 
 window.__ENV__ = {SUPABASE_URL: 'https://vrbsnbvkdvmainhffppg.supabase.co',
-  SUPABASE_ANON_KEY: 'sb_publishable_WP0blxivFudcVxoBd_-VGA_y8d2kxaD',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZyYnNuYnZrZHZtYWluaGZmcHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNTQyOTMsImV4cCI6MjA5NjkzMDI5M30.ldy_HnO8UJGIEtVZNQ4Py1x3cm2Lf22OgIk6fPJBGhE',
 };
