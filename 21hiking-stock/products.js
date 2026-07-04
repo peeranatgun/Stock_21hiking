@@ -101,3 +101,54 @@ export async function getDashboardStats() {
 
   return { inStock, sold, totalRevenue, totalExpense, totalProfit, netProfit };
 }
+
+export async function getProductsByLot(lotId, { search = '', brandId = '', status = '' } = {}) {
+  let query = supabase
+    .from('products')
+    .select('*, brands(id, name), lots(id, name)')
+    .order('created_at', { ascending: false });
+
+  if (lotId) query = query.eq('lot_id', lotId);
+  if (status) query = query.eq('status', status);
+  if (brandId) query = query.eq('brand_id', brandId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  if (search) {
+    return data.filter(p =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.brands?.name || '').toLowerCase().includes(search.toLowerCase())
+    );
+  }
+  return data;
+}
+
+export async function getDashboardStatsByLot(lotId) {
+  if (!lotId) return getDashboardStats();
+
+  const productsRes = await supabase.from('products').select('id, status, cost').eq('lot_id', lotId);
+  if (productsRes.error) throw productsRes.error;
+
+  const productIds = productsRes.data.map(p => p.id);
+
+  const [salesRes, expensesRes] = await Promise.all([
+    productIds.length
+      ? supabase.from('sales').select('sell_price, profit').in('product_id', productIds)
+      : Promise.resolve({ data: [], error: null }),
+    supabase.from('expenses').select('amount'),
+  ]);
+
+  const products = productsRes.data;
+  const sales = salesRes.data || [];
+  const expenses = expensesRes.data || [];
+
+  const inStock = products.filter(p => p.status === 'instock').length;
+  const sold = products.filter(p => p.status === 'sold').length;
+  const totalRevenue = sales.reduce((s, r) => s + (r.sell_price || 0), 0);
+  const totalProfit = sales.reduce((s, r) => s + (r.profit || 0), 0);
+  const totalExpense = expenses.reduce((s, r) => s + (r.amount || 0), 0);
+  const netProfit = totalProfit - totalExpense;
+
+  return { inStock, sold, totalRevenue, totalExpense, totalProfit, netProfit };
+}

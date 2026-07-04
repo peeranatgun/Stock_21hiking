@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ล็อต — 21Hiking Stock</title>
+  <script src="/env.js"></script>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#1d1d1f"/>
+</head>
+<body>
+<div id="sidebar-overlay" class="sidebar-overlay"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo"><h1>🏔️ 21Hiking Stock</h1><span>Stock Management</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">หลัก</div>
+      <a class="nav-item" data-page="index.html" href="index.html"><span class="nav-icon">📊</span>Dashboard</a>
+      <a class="nav-item" data-page="products.html" href="products.html"><span class="nav-icon">👕</span>สินค้า</a>
+      <a class="nav-item" data-page="brands.html" href="brands.html"><span class="nav-icon">🏷️</span>แบรนด์</a>
+      <a class="nav-item" data-page="lots.html" href="lots.html"><span class="nav-icon">📦</span>ล็อต</a>
+      <div class="nav-section-label">รายการ</div>
+      <a class="nav-item" data-page="sales.html" href="sales.html"><span class="nav-icon">💰</span>ยอดขาย</a>
+      <a class="nav-item" data-page="expenses.html" href="expenses.html"><span class="nav-icon">🧾</span>รายจ่าย</a>
+      <div class="nav-section-label">วิเคราะห์</div>
+      <a class="nav-item" data-page="reports.html" href="reports.html"><span class="nav-icon">📈</span>รายงาน</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;" id="user-email"></div>
+      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" data-logout>ออกจากระบบ</button>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" id="hamburger">☰</button>
+        <span class="topbar-title">ล็อต</span>
+      </div>
+      <button class="btn btn-primary btn-sm" id="add-lot-btn">+ สร้างล็อตใหม่</button>
+    </header>
+
+    <main class="page-content">
+      <!-- Active lot banner -->
+      <div id="active-banner" class="card" style="margin-bottom:20px;background:var(--text-primary);color:#fff;display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <div style="font-size:11px;opacity:0.6;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">ล็อตที่กำลังใช้งาน</div>
+            <div style="font-size:18px;font-weight:700;" id="active-lot-name">—</div>
+          </div>
+          <span style="font-size:24px;">📦</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;" id="active-lot-stats"></div>
+      </div>
+
+      <div id="lots-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Lot Modal -->
+<div class="modal-overlay" id="lot-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 class="modal-title" id="lot-modal-title">สร้างล็อตใหม่</h2>
+      <button class="modal-close" data-close>✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ชื่อล็อต <span style="color:var(--accent-red)">*</span></label>
+      <input type="text" id="lot-name" class="form-input" placeholder="เช่น ล็อต 1, เชียงใหม่ ม.ค. 68"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button class="btn btn-primary" id="save-lot-btn">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-handle"></div>
+    <div class="confirm-dialog">
+      <div class="confirm-icon">⚠️</div>
+      <div class="confirm-title">ยืนยัน</div>
+      <div class="confirm-desc"></div>
+    </div>
+    <div class="modal-footer" style="margin-top:20px;">
+      <button class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button class="btn btn-red" id="confirm-ok">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+
+<script type="module">
+import { initApp, showToast, openModal, closeModal, setupModalClose, formatCurrency, formatDate, confirm } from './app.js';
+import { getLots, createLot, updateLot, deleteLot, setActiveLot, getActiveLot, getLotStats } from './lots.js';
+
+setupModalClose('lot-modal');
+setupModalClose('confirm-modal');
+const session = await initApp();
+if (!session) throw new Error('not auth');
+
+let editingId = null;
+
+async function load() {
+  const list = document.getElementById('lots-list');
+  list.innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+
+  try {
+    const [lots, activeLot] = await Promise.all([getLots(), getActiveLot()]);
+
+    // Active banner
+    if (activeLot) {
+      document.getElementById('active-banner').style.display = 'block';
+      document.getElementById('active-lot-name').textContent = activeLot.name;
+      const stats = await getLotStats(activeLot.id);
+      if (stats) {
+        document.getElementById('active-lot-stats').innerHTML = `
+          <div style="text-align:center;">
+            <div style="font-size:20px;font-weight:700;">${stats.inStock}</div>
+            <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">ในสต็อก</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:20px;font-weight:700;">${stats.sold}</div>
+            <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">ขายแล้ว</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:20px;font-weight:700;">${formatCurrency(stats.totalProfit)}</div>
+            <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">กำไร</div>
+          </div>
+        `;
+      }
+    }
+
+    if (!lots.length) {
+      list.innerHTML = `<div class="empty-state">
+        <div class="empty-state-icon">📦</div>
+        <h3>ยังไม่มีล็อต</h3>
+        <p>กด "สร้างล็อตใหม่" เพื่อเริ่มต้น</p>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = lots.map(lot => {
+      const isActive = activeLot?.id === lot.id;
+      const count = lot.products?.[0]?.count ?? 0;
+      return `
+        <div class="brand-card" style="${isActive ? 'border-color:var(--text-primary);border-width:2px;' : ''}">
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="brand-name">${lot.name}</div>
+              ${isActive ? '<span class="badge" style="background:var(--text-primary);color:#fff;">Active</span>' : ''}
+            </div>
+            <div class="brand-count">${count} สินค้า · ${formatDate(lot.created_at)}</div>
+          </div>
+          <div class="brand-actions">
+            ${!isActive ? `<button class="btn btn-green btn-sm" onclick="activateLot('${lot.id}','${lot.name.replace(/'/g,"\\'")}')">เลือก</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="editLot('${lot.id}','${lot.name.replace(/'/g,"\\'")}')">แก้ไข</button>
+            <button class="btn btn-red btn-sm" onclick="removeLot('${lot.id}','${lot.name.replace(/'/g,"\\'")}')">ลบ</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = `<p style="color:var(--accent-red)">${e.message}</p>`;
+  }
+}
+
+document.getElementById('add-lot-btn').addEventListener('click', () => {
+  editingId = null;
+  document.getElementById('lot-modal-title').textContent = 'สร้างล็อตใหม่';
+  document.getElementById('lot-name').value = '';
+  openModal('lot-modal');
+});
+
+window.editLot = (id, name) => {
+  editingId = id;
+  document.getElementById('lot-modal-title').textContent = 'แก้ไขล็อต';
+  document.getElementById('lot-name').value = name;
+  openModal('lot-modal');
+};
+
+window.activateLot = (id, name) => {
+  confirm({
+    icon: '📦',
+    title: 'เลือกล็อต',
+    desc: `ตั้ง "${name}" เป็นล็อตที่ใช้งานอยู่ใช่ไหม?\nสินค้าที่เพิ่มใหม่จะเข้าล็อตนี้`,
+    confirmText: 'เลือก',
+    confirmClass: 'btn-green',
+    onConfirm: async () => {
+      try {
+        await setActiveLot(id);
+        showToast(`เลือกล็อต "${name}" แล้ว`, 'success');
+        load();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+  });
+};
+
+document.getElementById('save-lot-btn').addEventListener('click', async () => {
+  const name = document.getElementById('lot-name').value.trim();
+  if (!name) { showToast('กรุณากรอกชื่อล็อต', 'warning'); return; }
+  const btn = document.getElementById('save-lot-btn');
+  btn.disabled = true;
+  try {
+    if (editingId) { await updateLot(editingId, name); showToast('แก้ไขล็อตสำเร็จ'); }
+    else {
+      const lot = await createLot(name);
+      // ถ้ายังไม่มี active lot ให้ set อัตโนมัติ
+      const active = await getActiveLot();
+      if (!active) await setActiveLot(lot.id);
+      showToast('สร้างล็อตสำเร็จ');
+    }
+    closeModal('lot-modal');
+    load();
+  } catch (e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+});
+
+window.removeLot = (id, name) => {
+  confirm({
+    icon: '🗑️', title: 'ลบล็อต', desc: `ลบ "${name}" ใช่ไหม?\nสินค้าในล็อตจะไม่ถูกลบ`,
+    onConfirm: async () => {
+      try { await deleteLot(id); showToast('ลบล็อตแล้ว'); load(); }
+      catch (e) { showToast(e.message, 'error'); }
+    }
+  });
+};
+
+load();
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
+</body>
+</html>
