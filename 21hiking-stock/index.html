@@ -79,8 +79,9 @@
 
 <script type="module">
 import { initApp, formatCurrency, setupModalClose } from './app.js';
-import { getDashboardStats } from './products.js';
+import { getDashboardStatsByLot } from './products.js';
 import { getMonthlyStats, getMonthlyExpenses } from './sales.js';
+import { getActiveLot } from './lots.js';
 
 setupModalClose('confirm-modal');
 const session = await initApp();
@@ -88,7 +89,14 @@ if (!session) throw new Error('not auth');
 
 async function loadDashboard() {
   try {
-    const stats = await getDashboardStats();
+    const activeLot = await getActiveLot();
+
+    if (activeLot) {
+      const title = document.querySelector('.topbar-title');
+      title.innerHTML = `Dashboard <span style="font-size:12px;font-weight:500;color:var(--accent-blue);margin-left:8px;">📦 ${activeLot.name}</span>`;
+    }
+
+    const stats = await getDashboardStatsByLot(activeLot?.id || null);
     renderStats(stats);
     const monthly = await getMonthlyStats();
     const monthlyExp = await getMonthlyExpenses();
