@@ -123,7 +123,6 @@ export async function getProductsByLot(lotId, { search = '', brandId = '', statu
   }
   return data;
 }
-
 export async function getDashboardStatsByLot(lotId) {
   if (!lotId) return getDashboardStats();
 
@@ -136,7 +135,7 @@ export async function getDashboardStatsByLot(lotId) {
     productIds.length
       ? supabase.from('sales').select('sell_price, profit').in('product_id', productIds)
       : Promise.resolve({ data: [], error: null }),
-    supabase.from('expenses').select('amount'),
+    supabase.from('expenses').select('amount').eq('lot_id', lotId),
   ]);
 
   const products = productsRes.data;

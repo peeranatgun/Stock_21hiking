@@ -92,6 +92,7 @@
 <script type="module">
 import { initApp, showToast, openModal, closeModal, setupModalClose, formatCurrency, formatDate, confirm } from './app.js';
 import { getExpenses, createExpense, updateExpense, deleteExpense } from './expenses.js';
+import { getActiveLot } from './lots.js';
 
 setupModalClose('expense-modal');
 setupModalClose('confirm-modal');
@@ -101,10 +102,11 @@ if (!session) throw new Error('not auth');
 let editingId = null;
 
 async function load() {
+  const activeLot = await getActiveLot();
   const list = document.getElementById('expense-list');
   list.innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
   try {
-    const expenses = await getExpenses();
+    const expenses = await getExpenses(activeLot?.id || null);
     const total = expenses.reduce((s, e) => s + (e.amount || 0), 0);
     document.getElementById('total-expense-val').textContent = formatCurrency(total);
 
@@ -154,8 +156,14 @@ document.getElementById('save-expense-btn').addEventListener('click', async () =
   const btn = document.getElementById('save-expense-btn');
   btn.disabled = true;
   try {
-    if (editingId) { await updateExpense(editingId, { title, amount }); showToast('แก้ไขรายจ่ายสำเร็จ'); }
-    else { await createExpense({ title, amount }); showToast('เพิ่มรายจ่ายสำเร็จ'); }
+    if (editingId) {
+      await updateExpense(editingId, { title, amount });
+      showToast('แก้ไขรายจ่ายสำเร็จ');
+    } else {
+      const activeLot = await getActiveLot();
+      await createExpense({ title, amount, lot_id: activeLot?.id || null });
+      showToast('เพิ่มรายจ่ายสำเร็จ');
+    }
     closeModal('expense-modal');
     load();
   } catch (e) { showToast(e.message, 'error'); }
