@@ -1,5 +1,5 @@
 // sw.js — Service Worker for 21Hiking Stock PWA
-const CACHE_NAME = '21hiking-stock-v1';
+const CACHE_NAME = '21hiking-stock-v2';
 const ASSETS = [
   '/',
   '/index.html',
