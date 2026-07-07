@@ -120,19 +120,20 @@ async function load() {
       const stats = await getLotStats(activeLot.id);
       if (stats) {
         document.getElementById('active-lot-stats').innerHTML = `
-          <div style="text-align:center;">
-            <div style="font-size:20px;font-weight:700;">${stats.inStock}</div>
-            <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">ในสต็อก</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:20px;font-weight:700;">${stats.sold}</div>
-            <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">ขายแล้ว</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:20px;font-weight:700;">${formatCurrency(stats.totalProfit)}</div>
-            <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">กำไร</div>
-          </div>
-        `;
+  <div style="text-align:center;">
+    <div style="font-size:20px;font-weight:700;">${stats.inStock}</div>
+    <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">ในสต็อก</div>
+  </div>
+  <div style="text-align:center;">
+    <div style="font-size:20px;font-weight:700;">${stats.sold}</div>
+    <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">ขายแล้ว</div>
+  </div>
+  <div style="text-align:center;">
+    <div style="font-size:20px;font-weight:700;">${formatCurrency(stats.netProfit)}</div>
+    <div style="font-size:10px;opacity:0.6;text-transform:uppercase;">กำไรสุทธิ</div>
+  </div>
+`;
+
       }
     }
 

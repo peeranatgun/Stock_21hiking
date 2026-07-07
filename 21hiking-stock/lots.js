@@ -60,22 +60,26 @@ export async function getActiveLot() {
 
 export async function getLotStats(lotId) {
   if (!lotId) return null;
-  const [productsRes, salesRes] = await Promise.all([
-    supabase.from('products').select('id, status, cost').eq('lot_id', lotId),
-    supabase.from('sales').select('sell_price, profit, product_id')
-      .in('product_id',
-        (await supabase.from('products').select('id').eq('lot_id', lotId)).data?.map(p => p.id) || []
-      ),
+
+  const productsRes = await supabase.from('products').select('id, status, cost').eq('lot_id', lotId);
+  const productIds = (productsRes.data || []).map(p => p.id);
+
+  const [salesRes, expensesRes] = await Promise.all([
+    productIds.length
+      ? supabase.from('sales').select('sell_price, profit').in('product_id', productIds)
+      : Promise.resolve({ data: [] }),
+    supabase.from('expenses').select('amount').eq('lot_id', lotId),
   ]);
 
   const products = productsRes.data || [];
   const sales = salesRes.data || [];
+  const expenses = expensesRes.data || [];
 
   const inStock = products.filter(p => p.status === 'instock').length;
   const sold = products.filter(p => p.status === 'sold').length;
-  const totalCost = products.reduce((s, p) => s + (p.cost || 0), 0);
-  const totalRevenue = sales.reduce((s, r) => s + (r.sell_price || 0), 0);
   const totalProfit = sales.reduce((s, r) => s + (r.profit || 0), 0);
+  const totalExpense = expenses.reduce((s, r) => s + (r.amount || 0), 0);
+  const netProfit = totalProfit - totalExpense;
 
-  return { inStock, sold, totalCost, totalRevenue, totalProfit };
+  return { inStock, sold, totalProfit, totalExpense, netProfit };
 }
