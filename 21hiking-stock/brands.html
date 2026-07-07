@@ -82,7 +82,7 @@
 <div id="toast-container"></div>
 
 <script type="module">
-import { initApp, showToast, openModal, closeModal, setupModalClose, confirm } from './app.js';
+  import { initApp, showToast, openModal, closeModal, setupModalClose, confirm } from './app.js';
 import { getBrands, createBrand, updateBrand, deleteBrand } from './brands.js';
 
 setupModalClose('brand-modal');
@@ -159,6 +159,7 @@ window.removeBrand = (id, name) => {
 };
 
 load();
+
 </script>
 <script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
 </body>

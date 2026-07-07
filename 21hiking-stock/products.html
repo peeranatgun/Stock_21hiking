@@ -166,10 +166,11 @@
 <div id="toast-container"></div>
 
 <script type="module">
-import { initApp, showToast, openModal, closeModal, setupModalClose, formatCurrency, formatDate, confirm, debounce } from './app.js';
+  import { initApp, showToast, openModal, closeModal, setupModalClose, formatCurrency, formatDate, confirm, debounce } from './app.js';
 import { getProducts, getProductById, createProduct, updateProduct, deleteProduct, markAsSold } from './products.js';
 import { getBrandsSimple } from './brands.js';
 import { uploadProductImage } from './storage.js';
+import { getActiveLot } from './lots.js';
 
 setupModalClose('product-modal');
 setupModalClose('view-modal');
@@ -181,8 +182,8 @@ let brands = [];
 let editingId = null;
 let currentImageUrl = null;
 let pendingImageFile = null;
+let activeLot = null;
 
-// ── Load brands for selects ─────────────────────
 async function loadBrands() {
   brands = await getBrandsSimple();
   const filterSel = document.getElementById('filter-brand');
@@ -193,16 +194,23 @@ async function loadBrands() {
   });
 }
 
-// ── Load products ───────────────────────────────
 async function loadProducts() {
+  activeLot = await getActiveLot();
   const search = document.getElementById('search-input').value;
   const brandId = document.getElementById('filter-brand').value;
   const status = document.getElementById('filter-status').value;
   const grid = document.getElementById('product-grid');
-  grid.innerHTML = '<div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div></div>';
 
+  // แสดง active lot ใน topbar
+  const title = document.querySelector('.topbar-title');
+  if (activeLot) {
+    title.innerHTML = `สินค้า <span style="font-size:12px;font-weight:500;color:var(--accent-blue);margin-left:8px;">📦 ${activeLot.name}</span>`;
+  }
+
+  grid.innerHTML = '<div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div></div>';
   try {
-    const products = await getProducts({ search, brandId, status });
+    const { data: { session } } = await import('./supabase.js').then(m => m.supabase.auth.getSession());
+    const products = await getProducts({ search, brandId, status, lotId: activeLot?.id || null });
     renderGrid(products);
   } catch (e) {
     grid.innerHTML = `<p style="color:var(--accent-red);padding:20px">${e.message}</p>`;
@@ -214,12 +222,11 @@ function renderGrid(products) {
   if (!products.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
       <div class="empty-state-icon">👕</div>
-      <h3>ยังไม่มีสินค้า</h3>
+      <h3>ยังไม่มีสินค้าในล็อตนี้</h3>
       <p>กดปุ่ม "เพิ่มสินค้า" เพื่อเริ่มต้น</p>
     </div>`;
     return;
   }
-
   grid.innerHTML = products.map(p => `
     <div class="product-card" data-id="${p.id}">
       ${p.image_url
@@ -246,7 +253,6 @@ function renderGrid(products) {
   `).join('');
 }
 
-// ── Image upload ────────────────────────────────
 const imageArea = document.getElementById('image-upload-area');
 const imageInput = document.getElementById('image-input');
 const imagePreview = document.getElementById('image-preview');
@@ -263,7 +269,6 @@ imageInput.addEventListener('change', () => {
   uploadPlaceholder.classList.add('hidden');
 });
 
-// ── Open add modal ──────────────────────────────
 document.getElementById('add-product-btn').addEventListener('click', () => {
   editingId = null;
   currentImageUrl = null;
@@ -279,7 +284,6 @@ document.getElementById('add-product-btn').addEventListener('click', () => {
   openModal('product-modal');
 });
 
-// ── Edit ────────────────────────────────────────
 window.editProduct = async (id) => {
   editingId = id;
   pendingImageFile = null;
@@ -295,7 +299,6 @@ window.editProduct = async (id) => {
     document.getElementById('prd-sell').value = p.sell_price || '';
     document.getElementById('prd-desc').value = p.description || '';
     currentImageUrl = p.image_url || null;
-
     if (p.image_url) {
       imagePreview.src = p.image_url;
       imagePreview.classList.remove('hidden');
@@ -305,12 +308,9 @@ window.editProduct = async (id) => {
       uploadPlaceholder.classList.remove('hidden');
     }
     openModal('product-modal');
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
+  } catch (e) { showToast(e.message, 'error'); }
 };
 
-// ── View ────────────────────────────────────────
 window.viewProduct = async (id) => {
   try {
     const p = await getProductById(id);
@@ -335,26 +335,18 @@ window.viewProduct = async (id) => {
       </div>
     `;
     openModal('view-modal');
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
+  } catch (e) { showToast(e.message, 'error'); }
 };
 
-// ── Save ────────────────────────────────────────
 document.getElementById('save-product-btn').addEventListener('click', async () => {
   const name = document.getElementById('prd-name').value.trim();
   if (!name) { showToast('กรุณากรอกชื่อสินค้า', 'warning'); return; }
-
   const btn = document.getElementById('save-product-btn');
   btn.disabled = true;
   btn.textContent = 'กำลังบันทึก…';
-
   try {
     let imageUrl = currentImageUrl;
-    if (pendingImageFile) {
-      imageUrl = await uploadProductImage(pendingImageFile);
-    }
-
+    if (pendingImageFile) imageUrl = await uploadProductImage(pendingImageFile);
     const payload = {
       name,
       brand_id: document.getElementById('prd-brand').value || null,
@@ -365,66 +357,39 @@ document.getElementById('save-product-btn').addEventListener('click', async () =
       sell_price: parseFloat(document.getElementById('prd-sell').value) || null,
       description: document.getElementById('prd-desc').value.trim() || null,
       image_url: imageUrl,
+      lot_id: activeLot?.id || null,
     };
-
-    if (editingId) {
-      await updateProduct(editingId, payload);
-      showToast('แก้ไขสินค้าสำเร็จ');
-    } else {
-      await createProduct(payload);
-      showToast('เพิ่มสินค้าสำเร็จ');
-    }
-
+    if (editingId) { await updateProduct(editingId, payload); showToast('แก้ไขสินค้าสำเร็จ'); }
+    else { await createProduct(payload); showToast('เพิ่มสินค้าสำเร็จ'); }
     closeModal('product-modal');
     loadProducts();
-  } catch (e) {
-    showToast(e.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'บันทึก';
-  }
+  } catch (e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'บันทึก'; }
 });
 
-// ── Mark as sold ────────────────────────────────
 window.soldProduct = async (id, name) => {
   const p = await getProductById(id);
   confirm({
-    icon: '💰',
-    title: 'ยืนยันการขาย',
+    icon: '💰', title: 'ยืนยันการขาย',
     desc: `ยืนยันว่าขาย "${name}" แล้ว?\nกำไร: ${formatCurrency((p.sell_price||0)-(p.cost||0))}`,
-    confirmText: 'ขายแล้ว',
-    confirmClass: 'btn-green',
+    confirmText: 'ขายแล้ว', confirmClass: 'btn-green',
     onConfirm: async () => {
-      try {
-        await markAsSold(p);
-        showToast('บันทึกการขายสำเร็จ 🎉', 'success');
-        loadProducts();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
+      try { await markAsSold(p); showToast('บันทึกการขายสำเร็จ 🎉', 'success'); loadProducts(); }
+      catch (e) { showToast(e.message, 'error'); }
     }
   });
 };
 
-// ── Delete ──────────────────────────────────────
 window.removeProduct = (id, name) => {
   confirm({
-    icon: '🗑️',
-    title: 'ลบสินค้า',
-    desc: `ต้องการลบ "${name}" ใช่ไหม? ไม่สามารถย้อนกลับได้`,
+    icon: '🗑️', title: 'ลบสินค้า', desc: `ต้องการลบ "${name}" ใช่ไหม?`,
     onConfirm: async () => {
-      try {
-        await deleteProduct(id);
-        showToast('ลบสินค้าแล้ว');
-        loadProducts();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
+      try { await deleteProduct(id); showToast('ลบสินค้าแล้ว'); loadProducts(); }
+      catch (e) { showToast(e.message, 'error'); }
     }
   });
 };
 
-// ── Filters / Search ────────────────────────────
 const debouncedLoad = debounce(loadProducts, 300);
 document.getElementById('search-input').addEventListener('input', debouncedLoad);
 document.getElementById('filter-brand').addEventListener('change', loadProducts);
@@ -432,6 +397,7 @@ document.getElementById('filter-status').addEventListener('change', loadProducts
 
 await loadBrands();
 loadProducts();
+
 </script>
 <script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
 </body>

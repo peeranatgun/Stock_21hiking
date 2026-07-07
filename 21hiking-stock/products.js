@@ -1,7 +1,7 @@
 // products.js — Product management
 import { supabase } from './supabase.js';
 
-export async function getProducts({ search = '', brandId = '', status = '' } = {}) {
+export async function getProducts({ search = '', brandId = '', status = '', lotId = '' } = {}) {
   let query = supabase
     .from('products')
     .select('*, brands(id, name)')
@@ -9,14 +9,11 @@ export async function getProducts({ search = '', brandId = '', status = '' } = {
 
   if (status) query = query.eq('status', status);
   if (brandId) query = query.eq('brand_id', brandId);
-  if (search) {
-    query = query.or(`name.ilike.%${search}%`);
-  }
+  if (lotId) query = query.eq('lot_id', lotId);
 
   const { data, error } = await query;
   if (error) throw error;
 
-  // Client-side brand name search
   if (search) {
     return data.filter(p =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||

@@ -70,23 +70,33 @@
 <div id="toast-container"></div>
 
 <script type="module">
-import { initApp, formatCurrency, formatDate, renderPagination, debounce } from './app.js';
+  import { initApp, formatCurrency, formatDate, renderPagination, debounce } from './app.js';
 import { getSales } from './sales.js';
+import { getActiveLot } from './lots.js';
 
 const session = await initApp();
 if (!session) throw new Error('not auth');
 
 let page = 1;
 const PER_PAGE = 25;
+let activeLot = null;
 
 async function load() {
+  activeLot = await getActiveLot();
   const search = document.getElementById('search-input').value;
   const tbody = document.getElementById('sales-tbody');
+
+  // แสดง active lot ใน topbar
+  const title = document.querySelector('.topbar-title');
+  if (activeLot) {
+    title.innerHTML = `ยอดขาย <span style="font-size:12px;font-weight:500;color:var(--accent-blue);margin-left:8px;">📦 ${activeLot.name}</span>`;
+  }
+
   tbody.innerHTML = '<tr><td colspan="6"><div class="loading-overlay"><div class="spinner"></div></div></td></tr>';
   try {
-    const { data, count } = await getSales({ search, page, perPage: PER_PAGE });
+    const { data, count } = await getSales({ search, page, perPage: PER_PAGE, lotId: activeLot?.id || null });
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">💰</div><h3>ยังไม่มีรายการขาย</h3></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">💰</div><h3>ยังไม่มีรายการขายในล็อตนี้</h3></div></td></tr>';
       document.getElementById('pagination').innerHTML = '';
       return;
     }
@@ -100,7 +110,6 @@ async function load() {
         <td class="text-right ${(s.profit||0) >= 0 ? 'profit-positive' : 'profit-negative'}">${formatCurrency(s.profit)}</td>
       </tr>
     `).join('');
-
     renderPagination(document.getElementById('pagination'), page, count || data.length, PER_PAGE, (p) => { page = p; load(); });
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="6" style="color:var(--accent-red);padding:20px">${e.message}</td></tr>`;
@@ -111,6 +120,7 @@ const debouncedLoad = debounce(() => { page = 1; load(); }, 300);
 document.getElementById('search-input').addEventListener('input', debouncedLoad);
 
 load();
+
 </script>
 <script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(console.error);}</script>
 </body>

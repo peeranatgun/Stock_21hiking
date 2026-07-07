@@ -51,19 +51,29 @@
 
 <script type="module">
 import { initApp, showToast, formatCurrency } from './app.js';
-import { getDashboardStats } from './products.js';
+import { getDashboardStatsByLot } from './products.js';
 import { getMonthlyStats, getMonthlyExpenses } from './sales.js';
 import { getAllDataForExport, exportToExcel } from './reports.js';
+import { getActiveLot } from './lots.js';
 
 const session = await initApp();
 if (!session) throw new Error('not auth');
 
+let activeLot = null;
+
 async function load() {
+  activeLot = await getActiveLot();
+
+  const title = document.querySelector('.topbar-title');
+  if (activeLot) {
+    title.innerHTML = `รายงาน <span style="font-size:12px;font-weight:500;color:var(--accent-blue);margin-left:8px;">📦 ${activeLot.name}</span>`;
+  }
+
   try {
     const [stats, monthly, monthlyExp] = await Promise.all([
-      getDashboardStats(),
-      getMonthlyStats(),
-      getMonthlyExpenses(),
+      getDashboardStatsByLot(activeLot?.id || null),
+      getMonthlyStats(activeLot?.id || null),
+      getMonthlyExpenses(activeLot?.id || null),
     ]);
     renderSummary(stats);
     renderCharts(monthly, monthlyExp);
@@ -100,7 +110,6 @@ function renderCharts(monthly, monthlyExp) {
   `;
 
   const chartOpts = { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } };
-
   new Chart(document.getElementById('chart-rev'), {
     type: 'bar',
     data: { labels, datasets: [{ label: 'รายรับ', data: keys.map(k => monthly[k]?.revenue || 0), backgroundColor: 'rgba(0,113,227,0.7)', borderRadius: 6 }] },
@@ -123,7 +132,7 @@ document.getElementById('export-btn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = 'กำลัง Export…';
   try {
-    const data = await getAllDataForExport();
+    const data = await getAllDataForExport(activeLot?.id || null);
     exportToExcel(data);
     showToast('Export Excel สำเร็จ 📥', 'success');
   } catch (e) {
